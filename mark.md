@@ -10,3 +10,6 @@ permalink: /mark/
 
 ## 很赞的文章
 [golang中的闭包](https://llmxby.com/2022/08/27/%E6%8E%A2%E7%A9%B6Golang%E4%B8%AD%E7%9A%84%E9%97%AD%E5%8C%85/)
+
+## 图床
+[sm.ms](https://sm.ms/)
