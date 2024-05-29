@@ -20,6 +20,7 @@ import os
 from docx import Document
 from PIL import Image
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
 
 bugMap = {
@@ -136,8 +137,7 @@ def set_detail_statis(table, images):
             if len(bugType) == 0:
                 bugType = fuzzy_mattch(k)
                 if len(bugType) > 0:
-                    if debug:
-                        print(f"{k}未匹配到缺陷类别,已模糊匹配为{bugType}")
+                    debugLog(f"{k}未匹配到缺陷类别,已模糊匹配为{bugType}")
             table.cell(c, 2).text = bugType
             copy_cell_font_size(table.cell(c, 2), table.cell(c, 0))
             copy_cell_font_size(table.cell(c, 2), table.cell(c, 0))
@@ -194,17 +194,11 @@ def deal_table(table, pic):
     set_cell_text(cells[0], cells[9], p3)
     image_path = "./pic/" + pic
 
-    # 处理exif信息
-    f = Image.open(image_path)  # 你的图片文件
-    f.save(image_path)  # 替换掉你的图片文件
-    f.close()
-
     cells[12].paragraphs[0].add_run().add_picture(
         image_path, width=cells[12].width * 0.9, height=table.rows[3].height * 0.9
     )
     cells[12].paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER  # 左右居中
-    if debug:
-        print(f"明细表 {picName} 处理完成")
+    debugLog(f"明细表 {picName} 处理完成")
 
 
 # 缺陷数量统计表
@@ -288,8 +282,7 @@ def set_total_description(doc):
         jueyuanzi_bug=total_statis_map.get("绝缘子", 0),
         tongdao_bug=total_statis_map.get("通道", 0),
     )
-    if debug:
-        print(f"缺陷情况总览文字: {content}")
+    debugLog(f"缺陷情况总览文字: {content}")
     doc.paragraphs[total_description_paragraph].text = content
     doc.paragraphs[total_description_paragraph].runs[0].font.size = font_size
 
@@ -348,23 +341,19 @@ def get_template(commonList, otherList, fileName):
     statis_table_rows = len(tables[level1_table_index - 1].rows) - 1
     if statis_table_rows < len(otherList):
         statis_add_table(tables[level1_table_index - 1], otherList)
-        if debug:
-            print(f"危急、严重缺陷汇总表插入{len(otherList)-statis_table_rows-1}行")
+        debugLog(f"危急、严重缺陷汇总表插入{len(otherList)-statis_table_rows-1}行")
     # 判断<一般>汇总表行数是否足够
     statis_table_rows = len(tables[level2_table_index - 1].rows) - 1
     if statis_table_rows < len(commonList):
         statis_add_table(tables[level2_table_index - 1], commonList)
-        if debug:
-            print(f"一般缺陷汇总表插入{len(commonList)-statis_table_rows}行")
+        debugLog(f"一般缺陷汇总表插入{len(commonList)-statis_table_rows}行")
     # <危急，严重> 添加表格
     if addNum > 0:
-        if debug:
-            print("危急，严重部分缺少", addNum, "个表格")
+        debugLog("危急，严重部分缺少", addNum, "个表格")
         for i in range(addNum):
             new_tbl = deepcopy(tbl)
             doc.paragraphs[level1_paragraph_index]._p.addnext(new_tbl)
-        if debug:
-            print("<危急，严重>部分插入", addNum, "个表格成功")
+        debugLog("<危急，严重>部分插入", addNum, "个表格成功")
 
     # 判断 <一般> 详情表数量是否足够
     addNum = 0
@@ -377,17 +366,14 @@ def get_template(commonList, otherList, fileName):
             addNum = level2_table_index + len(commonList) - i
             break
     if addNum > 0:
-        if debug:
-            print("<一般>部分缺少", addNum, "个表格")
+        debugLog("<一般>部分缺少", addNum, "个表格")
         for i in range(addNum):
             new_tbl = deepcopy(tbl)
             doc.paragraphs[-1]._p.addnext(new_tbl)
-        if debug:
-            print("<一般>部分插入", addNum, "个表格成功")
+        debugLog("<一般>部分插入", addNum, "个表格成功")
 
     doc.save("tpl.docx")
-    if debug:
-        print("生成模板成功")
+    debugLog("生成模板成功")
 
 
 # 处理数据
@@ -397,14 +383,11 @@ def deal(commonList, otherList, fileName):
     tables = doc.tables  # 获取文档中所有表格对象的列表
     level1_table_index = first_table_index + 3
 
-    if debug:
-        print("开始处理 危急、严重缺陷汇总表")
+    debugLog("开始处理 危急、严重缺陷汇总表")
     set_detail_statis(tables[first_table_index + 2], otherList)
-    if debug:
-        print("危急、严重缺陷汇总表 写入完成")
+    debugLog("危急、严重缺陷汇总表 写入完成")
 
-    if debug:
-        print("开始处理 危急、严重缺陷明细表")
+    debugLog("开始处理 危急、严重缺陷明细表")
     picIndex = 0
     level2_table_index = level1_table_index + 2
     for i in range(level1_table_index, level1_table_index + len(otherList)):
@@ -413,37 +396,47 @@ def deal(commonList, otherList, fileName):
         pic = otherList[picIndex]
         deal_table(table, pic)
         picIndex += 1
-    if debug:
-        print("危急、严重缺陷明细表 处理完成")
+    debugLog("危急、严重缺陷明细表 处理完成")
 
-    if debug:
-        print("开始处理 一般缺陷汇总表")
+    debugLog("开始处理 一般缺陷汇总表")
     set_detail_statis(tables[level2_table_index - 1], commonList)
-    if debug:
-        print("一般缺陷汇总表 写入完成")
+    debugLog("一般缺陷汇总表 写入完成")
 
-    if debug:
-        print("开始处理 一般缺陷明细表")
+    debugLog("开始处理 一般缺陷明细表")
     picIndex = 0
     for i in range(level2_table_index, level2_table_index + len(commonList)):
         table = tables[i]
         pic = commonList[picIndex]
         deal_table(table, pic)
         picIndex += 1
-    if debug:
-        print("一般缺陷明细表处理完成")
+    debugLog("一般缺陷明细表处理完成")
 
     bug_num_statis(tables[first_table_index])
-    if debug:
-        print("缺陷数量统计表 写入完成")
+    debugLog("缺陷数量统计表 写入完成")
     bug_type_statis(tables[first_table_index + 1])
-    if debug:
-        print("缺陷类别统计表 写入完成")
+    debugLog("缺陷类别统计表 写入完成")
 
     set_total_description(doc)
-    if debug:
-        print("缺陷情况总览 写入完成")
+    debugLog("缺陷情况总览 写入完成")
     doc.save(fileName)
+
+
+def debugLog(log):
+    if debug:
+        print(log)
+
+
+# 处理exif信息
+def clearexif(imageList):
+
+    def clear(image):
+        f = Image.open(image)  # 你的图片文件
+        f.save(image)  # 替换掉你的图片文件
+        f.close()
+
+    executor = ThreadPoolExecutor(ThreadPoolNum)
+    all_tasks = [executor.submit(clear, i) for i in range(imageList)]
+    wait(all_tasks, return_when=ALL_COMPLETED)
 
 
 templateFileName = "test.docx"  # 模板文件名称
@@ -452,6 +445,7 @@ statis_number_font = "Times New Roman"  # 统计表数字字体
 is_set_statis_number_size = True
 debug = True  # 是否开启提示
 warn = True  # 是否开启警告信息
+ThreadPoolNum = 10
 
 if __name__ == "__main__":
     print("程序开始运行...")
@@ -461,6 +455,8 @@ if __name__ == "__main__":
     fileName = f"{tmpName}.docx"
     commonList, otherList = get_images()
     get_template(commonList, otherList, templateFileName)
+    clearexif(commonList)
+    clearexif(otherList)
     deal(commonList, otherList, fileName)
     print(f"程序运行结束！请查看<{fileName}>文件")
 
