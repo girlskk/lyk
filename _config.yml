@@ -41,7 +41,7 @@ navigation:
     url: /mark
   - name: 标签
     url: /tags
-   - name: 常用网站
+  - name: 常用网站
     url: /account
 
 # 每页的文章数
