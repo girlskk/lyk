@@ -24,6 +24,7 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 from docx.enum.text import WD_BREAK
 from docx.text.paragraph import Paragraph
 from docx.oxml.xmlchemy import OxmlElement
+from docx.oxml.ns import qn
 
 bugMap = {
     "杆塔树障": "基础",
@@ -120,6 +121,45 @@ def fuzzy_match(bug_detail):
     return ""
 
 
+def set_cell_border(cell, **kwargs):
+    """
+    Set cell`s border
+    Usage:
+    set_cell_border(
+        cell,
+        top={"sz": 12, "val": "single", "color": "#FF0000", "space": "0"},
+        bottom={"sz": 12, "color": "#00FF00", "val": "single"},
+        left={"sz": 24, "val": "dashed", "shadow": "true"},
+        right={"sz": 12, "val": "dashed"},
+    )
+    """
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+
+    # check for tag existnace, if none found, then create one
+    tcBorders = tcPr.first_child_found_in("w:tcBorders")
+    if tcBorders is None:
+        tcBorders = OxmlElement("w:tcBorders")
+        tcPr.append(tcBorders)
+
+    # list over all available tags
+    for edge in ("left", "top", "right", "bottom", "insideH", "insideV"):
+        edge_data = kwargs.get(edge)
+        if edge_data:
+            tag = "w:{}".format(edge)
+
+            # check for tag existnace, if none found, then create one
+            element = tcBorders.find(qn(tag))
+            if element is None:
+                element = OxmlElement(tag)
+                tcBorders.append(element)
+
+            # looks like order of attributes is important
+            for key in ["sz", "val", "color", "space", "shadow"]:
+                if key in edge_data:
+                    element.set(qn("w:{}".format(key)), str(edge_data[key]))
+
+
 def get_bug_type(bug_reason):
     bugType = bugMap.get(bug_reason, "")
     if len(bugType) == 0:
@@ -137,8 +177,7 @@ def set_detail_statis(table, images, bug_type):
     debug_log(f"开始处理 {bug_type_map.get(bug_type,'')}缺陷汇总表")
     c = 1
     for i in images:
-
-        picName, picType = i.split(".")
+        picName = get_pic_name(i)
         bugLevel = imageBugLevelMap.get(i, "")
 
         bugType = get_bug_type(imageBugReasonMap.get(i, ""))
@@ -150,8 +189,9 @@ def set_detail_statis(table, images, bug_type):
         update_cell(table, c, 1, picName[:-3])
         update_cell(table, c, 2, bugType)
         update_cell(table, c, 3, bugLevel)
+        update_cell(table, c, 4, image_index.get(i, ""))
         c += 1
-    debug_log("一般缺陷汇总表 写入完成")
+    debug_log(f"{bug_type_map.get(bug_type,'')}缺陷汇总表 写入完成")
 
 
 # 更新单元格
@@ -201,20 +241,32 @@ def update_bug_type_count(bugType, bugLevel):
     )
 
 
+pic_name_cache = {}
+
+
+def get_pic_name(pic):
+    cache_name = pic_name_cache.get(pic, "")
+    if len(cache_name) > 0:
+        return cache_name
+    picName, picType = pic.split(".")
+    pic_name_cache[pic] = picName
+    return picName
+
+
 # 每个图片插入数据到一个表格
 def deal_table(table, pic):
-    picName, picType = pic.split(".")
-    p1, p2, p3, p4 = picName.split("_")
-    update_cell(table, 1, 0, p1)
-    update_cell(table, 1, 1, p2)
-    update_cell(table, 1, 2, p4)
-    update_cell(table, 2, 1, p3)
+    pic_name = get_pic_name(pic)
+    route_name, tower_num, bug_reason, bug_level = pic_name.split("_")
+    update_cell(table, 1, 0, route_name)
+    update_cell(table, 1, 1, tower_num)
+    update_cell(table, 1, 2, bug_level)
+    update_cell(table, 2, 1, bug_reason)
 
     table_insert_image(table, 9, pic)
-    close_up_pic = closeUpMap.get(picName, "")
+    close_up_pic = closeUpMap.get(pic_name, "")
     if len(close_up_pic) > 0:
         table_insert_image(table, 12, close_up_pic)
-    debug_log(f"明细表 {picName} 处理完成")
+    debug_log(f"明细表 {pic_name} 处理完成")
 
 
 # 插入图片
@@ -342,6 +394,7 @@ def get_images():
     for root, dirs, pics in os.walk("./pic"):
         for pic in pics:
             picName, picType = pic.split(".")
+            pic_name_cache[pic] = picName
             if len(picName.split("_")) != 4:
                 if not deal_close_up_image(pic):
                     return
@@ -517,7 +570,14 @@ def get_template(emergencyList, criticalList, commonList, fileName):
 
 def deal_one_type_table(doc, table_index, iamge_list, bug_type):
     debug_log(f"开始处理 {bug_type_map.get(bug_type,'')}明细表")
-
+    bug_pre = ""
+    match bug_type:
+        case 1:
+            bug_pre = "A"
+        case 2:
+            bug_pre = "B"
+        case 3:
+            bug_pre = "C"
     picIndex = 0
     for i in range(
         table_index + 1,
@@ -527,8 +587,35 @@ def deal_one_type_table(doc, table_index, iamge_list, bug_type):
         pic = iamge_list[picIndex]
         deal_table(table, pic)
         picIndex += 1
-
+        bug_pre_index = bug_pre + str(picIndex)
+        insert_row(table, 0, [bug_pre_index + "  " + get_pic_name(pic)])
+        # todo
+        image_index[pic] = bug_pre_index
     debug_log(f"{bug_type_map.get(bug_type,'')}明细表 处理完成")
+
+
+def insert_row(table, row_index, content):
+    # 在指定位置插入一行
+    new_row = table.add_row().cells
+    for i, text in enumerate(content):
+        new_row[i].text = text
+    # 移动新插入的行到指定位置
+    rows = table.rows
+    rows[row_index]._element.getparent().insert(
+        rows[row_index]._element.getparent().index(rows[row_index]._element),
+        rows[-1]._element,
+    )
+    # 需要合并的行和列
+    cell_span = table.rows[row_index].cells[:]
+    cell_span[0].merge(cell_span[-1])
+    # rows[-1]._element.getparent().remove(rows[-1]._element)
+
+    set_cell_border(
+        table._cells[0],
+        top={"color": "#ffffff", "val": "nil"},
+        left={"color": "#ffffff", "val": "nil"},
+        right={"color": "#ffffff", "val": "nil"},
+    )
 
 
 # 处理数据
@@ -540,15 +627,13 @@ def deal(emergencyList, criticalList, commonList, fileName):
     critical_statis_table_index = get_statis_table(doc, 2)
     common_statis_table_index = get_statis_table(doc, 3)
 
-    set_detail_statis(tables[emergency_statis_table_index], emergencyList, EMERGENCY)
-
-    set_detail_statis(tables[critical_statis_table_index], criticalList, CRITICAL)
-
-    set_detail_statis(tables[common_statis_table_index], commonList, COMMON)
-
     deal_one_type_table(doc, emergency_statis_table_index, emergencyList, EMERGENCY)
     deal_one_type_table(doc, critical_statis_table_index, criticalList, CRITICAL)
     deal_one_type_table(doc, common_statis_table_index, commonList, COMMON)
+
+    set_detail_statis(tables[emergency_statis_table_index], emergencyList, EMERGENCY)
+    set_detail_statis(tables[critical_statis_table_index], criticalList, CRITICAL)
+    set_detail_statis(tables[common_statis_table_index], commonList, COMMON)
 
     bug_num_statis(tables[bug_num_table_index])
     debug_log("缺陷数量统计表 写入完成")
@@ -617,6 +702,7 @@ if __name__ == "__main__":
             deal(emergencyList, criticalList, commonList, fileName)
             debug_log(f"请查看 \033[32m{fileName}\033[m 文件")
     debug_log(f"程序运行结束！")
+
 
 
 ```
