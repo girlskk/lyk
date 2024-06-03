@@ -83,42 +83,17 @@ bugMap = {
     "避雷器连接线脱落": "避雷器",
 }
 
-bugTypeCountMap = {}
+bug_type_count_map = {}
 total_statis_map = {}
 image_index = {}
 bug_type_map = {1: "危急", 2: "严重", 3: "一般"}
-
-
-# statis_add_row 汇总行数小于图片数量时，添加行
-def statis_add_row(table, images):
-    tr = len(table.rows)
-    while tr - 1 < len(images):
-        new_row = deepcopy(table.rows[-1])
-        table.rows[-1]._tr.addnext(new_row._element)  # 在最后一行后面添加
-        table.rows[-1]._tr.addprevious(new_row._element)
-        tr += 1
-
-
-# 缺陷描述和缺陷类别不匹配时，模糊匹配
-def fuzzy_match(bug_detail):
-    if "绝缘子" in bug_detail:
-        return "绝缘子"
-    if any(keyword in bug_detail for keyword in ["杆塔", "塔基", "塔头", "塔顶"]):
-        return "基础"
-    if any(keyword in bug_detail for keyword in ["金具", "销钉", "螺母"]):
-        return "金具"
-    if any(keyword in bug_detail for keyword in ["保护壳", "标识牌"]):
-        return "附属设施"
-    if any(keyword in bug_detail for keyword in ["地线", "导线"]):
-        return "导地线"
-    if "避雷器" in bug_detail:
-        return "避雷器"
-    if "变压器" in bug_detail:
-        return "变压器"
-    if "通道" in bug_detail:
-        return "通道"
-    debug_log(f"{bug_detail} 未匹配到缺陷类别", 2)
-    return ""
+close_up_map = {}
+image_bug_level_map = {}
+image_bug_reason_map = {}
+image_tower_map = {}
+image_route_name_map = {}
+image_type_map = {}
+pic_name_cache = {}
 
 
 def set_cell_border(cell, **kwargs):
@@ -160,7 +135,31 @@ def set_cell_border(cell, **kwargs):
                     element.set(qn("w:{}".format(key)), str(edge_data[key]))
 
 
-def get_bug_type(bug_reason):
+# 缺陷描述和缺陷类别不匹配时，模糊匹配
+def fuzzy_match(bug_detail=""):
+    """When the exact match fails, fuzzy matching is used"""
+    if any(keyword in bug_detail for keyword in ["绝缘子"]):
+        return "绝缘子"
+    if any(keyword in bug_detail for keyword in ["杆塔", "塔基", "塔头", "塔顶"]):
+        return "基础"
+    if any(keyword in bug_detail for keyword in ["金具", "销钉", "螺母"]):
+        return "金具"
+    if any(keyword in bug_detail for keyword in ["保护壳", "标识牌"]):
+        return "附属设施"
+    if any(keyword in bug_detail for keyword in ["地线", "导线"]):
+        return "导地线"
+    if any(keyword in bug_detail for keyword in ["避雷器"]):
+        return "避雷器"
+    if any(keyword in bug_detail for keyword in ["变压器"]):
+        return "变压器"
+    if any(keyword in bug_detail for keyword in ["通道"]):
+        return "通道"
+    debug_log(f"{bug_detail} 未匹配到缺陷类别", 2)
+    return ""
+
+
+def get_bug_type(bug_reason=""):
+    """Get the defect type based on the defect description"""
     bugType = bugMap.get(bug_reason, "")
     if len(bugType) == 0:
         bugType = fuzzy_match(bug_reason)
@@ -178,9 +177,9 @@ def set_detail_statis(table, images, bug_type):
     c = 1
     for i in images:
         picName = get_pic_name(i)
-        bugLevel = imageBugLevelMap.get(i, "")
+        bugLevel = image_bug_level_map.get(i, "")
 
-        bugType = get_bug_type(imageBugReasonMap.get(i, ""))
+        bugType = get_bug_type(image_bug_reason_map.get(i, ""))
         # 汇总数据
         if len(bugType) > 0:
             update_bug_type_count(bugType, bugLevel)
@@ -196,6 +195,7 @@ def set_detail_statis(table, images, bug_type):
 
 # 更新单元格
 def update_cell(table, row_idx, col_idx, text):
+    """Update the cell and set it to center"""
     cell = table.cell(row_idx, col_idx)
     cell.text = text
     cell.paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
@@ -206,42 +206,24 @@ def cell_set_center(cell):
     cell.paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
 
-# 复制单元格字体格式
-def copy_cell_font_name(cell1, cell2):
-    cell1.paragraphs[0].runs[0].font.name = cell2.paragraphs[0].runs[0].font.name
-
-
 # 复制单元格字体大小
 def copy_cell_font_size(cell1, cell2):
     cell1.paragraphs[0].runs[0].font.size = cell2.paragraphs[0].runs[0].font.size
 
 
 def update_bug_type_count(bugType, bugLevel):
-    # bugLevelCountMap = bugTypeCountMap.get(bugType, {})
-    # bugLevelCountMap[bugLevel] = bugLevelCountMap.get(bugLevel, 0) + 1
-    # bugLevelCountMap["合计"] = bugLevelCountMap.get("合计", 0) + 1
-    # bugTypeCountMap[bugType] = bugLevelCountMap
-
-    # bugLevelCountMap2 = bugTypeCountMap.get("合计", {})
-    # bugLevelCountMap2[bugLevel] = bugLevelCountMap2.get(bugLevel, 0) + 1
-    # bugLevelCountMap2["合计"] = bugLevelCountMap2.get("合计", 0) + 1
-    # bugTypeCountMap["合计"] = bugLevelCountMap2
-
-    bugTypeCountMap.setdefault(bugType, {}).update(
+    bug_type_count_map.setdefault(bugType, {}).update(
         {
-            bugLevel: bugTypeCountMap.get(bugType, {}).get(bugLevel, 0) + 1,
-            "合计": bugTypeCountMap.get(bugType, {}).get("合计", 0) + 1,
+            bugLevel: bug_type_count_map.get(bugType, {}).get(bugLevel, 0) + 1,
+            "合计": bug_type_count_map.get(bugType, {}).get("合计", 0) + 1,
         }
     )
-    bugTypeCountMap.setdefault("合计", {}).update(
+    bug_type_count_map.setdefault("合计", {}).update(
         {
-            bugLevel: bugTypeCountMap.get("合计", {}).get(bugLevel, 0) + 1,
-            "合计": bugTypeCountMap.get("合计", {}).get("合计", 0) + 1,
+            bugLevel: bug_type_count_map.get("合计", {}).get(bugLevel, 0) + 1,
+            "合计": bug_type_count_map.get("合计", {}).get("合计", 0) + 1,
         }
     )
-
-
-pic_name_cache = {}
 
 
 def get_pic_name(pic):
@@ -263,7 +245,7 @@ def deal_table(table, pic):
     update_cell(table, 2, 1, bug_reason)
 
     table_insert_image(table, 9, pic)
-    close_up_pic = closeUpMap.get(pic_name, "")
+    close_up_pic = close_up_map.get(pic_name, "")
     if len(close_up_pic) > 0:
         table_insert_image(table, 12, close_up_pic)
     debug_log(f"明细表 {pic_name} 处理完成")
@@ -282,7 +264,7 @@ def table_insert_image(table, cell_idx, pic):
 
 # 缺陷数量统计表
 def bug_num_statis(table):
-    bugLevelCountMap = bugTypeCountMap.get("合计", {})
+    bugLevelCountMap = bug_type_count_map.get("合计", {})
     if len(bugLevelCountMap) == 0:
         return
     col = 0
@@ -302,7 +284,7 @@ def bug_num_statis(table):
 def bug_type_statis(table):
     row = 0
     for rows in table.rows:
-        bugLevelCountMap = bugTypeCountMap.get(rows.cells[0].text, {})
+        bugLevelCountMap = bug_type_count_map.get(rows.cells[0].text, {})
         if len(bugLevelCountMap) > 0 or row >= 2:
             col = 0
             for key in table.rows[1].cells:
@@ -351,47 +333,31 @@ def set_total_description(doc):
     return True
 
 
-# 匹配文字所在段落
-def match_text_paragraph(doc, text):
-    pi = 0
-    for p in doc.paragraphs:
-        if text in p.text:
-            return pi
-        pi += 1
-    return 0
-
-
-closeUpMap = {}
-imageBugLevelMap = {}
-imageBugReasonMap = {}
-imageTowerMap = {}
-imageRouteNameMap = {}
-imageTypeMap = {}
-
-
 def deal_close_up_image(pic):
-    picName, picType = pic.split(".")
-    if len(picName.split("_")) != 5:
+    """ "Check whether the close-up image is standard"""
+    pic_name, pic_type = pic.split(".")
+    if len(pic_name.split("_")) != 5:
         debug_log(
-            f"图片名称不规范,不规范的图片为：\033[35m{picName}.{picType}\033[m ", 2
+            f"图片名称不规范,不规范的图片为：\033[35m{pic_name}.{pic_type}\033[m ", 2
         )
         return False
-    if len(picName.split("_特写")) != 2:
+    if len(pic_name.split("_特写")) != 2:
         debug_log(
-            f"图片名称不规范,不规范的图片为：\033[35m{picName}.{picType}\033[m ", 2
+            f"图片名称不规范,不规范的图片为：\033[35m{pic_name}.{pic_type}\033[m ", 2
         )
         return False
-    closeUpName, _ = picName.split("_特写")
-    closeUpMap[closeUpName] = pic
+    close_up_name, _ = pic_name.split("_特写")
+    close_up_map[close_up_name] = pic
     return True
 
 
 # 获取待处理的图片
-def get_images():
-    commonList = []
-    criticalList = []
-    emergencyList = []
-    for root, dirs, pics in os.walk("./pic"):
+def get_images(image_dir=""):
+    """Image Classification"""
+    common_list = []
+    critical_list = []
+    emergency_list = []
+    for root, dirs, pics in os.walk(image_dir):
         for pic in pics:
             picName, picType = pic.split(".")
             pic_name_cache[pic] = picName
@@ -400,22 +366,23 @@ def get_images():
                     return
                 continue
             route_name, tower_num, bug_reason, bug_level = picName.split("_")
-            imageBugLevelMap[pic] = bug_level
-            imageBugReasonMap[pic] = bug_reason
-            imageTowerMap[pic] = tower_num
-            imageRouteNameMap[pic] = route_name
-            imageTypeMap[pic] = picType
+            image_bug_level_map[pic] = bug_level
+            image_bug_reason_map[pic] = bug_reason
+            image_tower_map[pic] = tower_num
+            image_route_name_map[pic] = route_name
+            image_type_map[pic] = picType
             match bug_level:
                 case "危急":
-                    emergencyList.append(pic)
+                    emergency_list.append(pic)
                 case "严重":
-                    criticalList.append(pic)
+                    critical_list.append(pic)
                 case "一般":
-                    commonList.append(pic)
-    return emergencyList, criticalList, commonList
+                    common_list.append(pic)
+    return emergency_list, critical_list, common_list
 
 
-def get_statis_table(doc, index=1):
+def get_summary_table_index(doc, index=1):
+    """Get summary table location"""
     i = 0
     sort = 1
     for t in doc.tables:
@@ -426,43 +393,14 @@ def get_statis_table(doc, index=1):
         i += 1
 
 
-def get_detail_table(doc, index=1):
-    i = 0
-    sort = 1
-    for t in doc.tables:
-        if t._cells[0].text == "线路名称":
-            if index == sort:
-                return i
-            sort += 1
-        i += 1
-
-
-def match_detail_paragraph(doc, title):
+def match_text_paragraph(doc, text=""):
+    """Get the paragraph where the text is located"""
     pi = 0
     for p in doc.paragraphs:
-        if title in p.text:
+        if text in p.text:
             return pi
         pi += 1
     return 0
-
-
-# def par_index(paragraph):
-#     "Get the index of the paragraph in the document"
-#     doc = paragraph._parent
-#     # the paragraphs elements are being generated on the fly,
-#     # they change all the time
-#     # so in order to index, we must use the elements
-#     l_elements = [p._element for p in doc.paragraphs]
-#     return l_elements.index(paragraph._element)
-
-
-def par_index(doc, para):
-    i = 0
-    for p in doc.paragraphs:
-        debug_log(p.text, 2)
-        if p == para:
-            return i
-        i += 1
 
 
 def insert_paragraph_after(paragraph, text=None, style=None):
@@ -477,17 +415,36 @@ def insert_paragraph_after(paragraph, text=None, style=None):
     return new_para
 
 
-def missing_table_num(doc, table_index, image_list):
-    for i in range(table_index, table_index + len(image_list)):
+def missing_table_num(doc, table_index=0, image_num=0):
+    """Get the number of missing detail lists"""
+    for i in range(table_index, table_index + image_num):
         if i >= len(doc.tables):
-            return table_index + len(image_list) - i
+            return table_index + image_num - i
         table = doc.tables[i]
         if i > table_index and (table._cells[0].text != "线路名称"):
-            return table_index + len(image_list) - i
+            return table_index + image_num - i
     return 0
 
 
-def add_missing_table(doc, tbl, paragraph_index, add_num):
+def get_detail_table_index(doc, index=1):
+    """Get the location of the details table"""
+    i = 0
+    sort = 1
+    for t in doc.tables:
+        if t._cells[0].text == "线路名称":
+            if index == sort:
+                return i
+            sort += 1
+        i += 1
+
+
+def add_missing_table(doc, tbl=None, paragraph_index=0, add_num=0):
+    """Add missing table"""
+
+    if tbl == None:
+        debug_log("获取明细表表格模板失败", 2)
+        return
+
     if add_num > 0:
         debug_log(f"危急部分缺少{add_num}个表格")
         for i in range(add_num):
@@ -499,22 +456,33 @@ def add_missing_table(doc, tbl, paragraph_index, add_num):
         debug_log(f"<危急>部分插入{add_num}个表格成功")
 
 
-def add_missing_rows(doc, table_index, image_list, bug_type):
+def add_missing_rows(doc, table_index=0, image_num=0, bug_type=0):
     statis_table_rows = len(doc.tables[table_index].rows) - 1
-    if statis_table_rows < len(image_list):
-        statis_add_row(doc.tables[table_index], image_list)
-        debug_log(f"{bug_type}缺陷汇总表插入{len(image_list)-statis_table_rows-1}行")
+    if statis_table_rows < image_num:
+        table_add_row(doc.tables[table_index], image_num)
+        debug_log(f"{bug_type}缺陷汇总表插入{image_num-statis_table_rows-1}行")
+
+
+# table_add_row 汇总行数小于图片数量时，添加行
+def table_add_row(table, num=0):
+    """Adding rows to a table"""
+    tr = len(table.rows)
+    while tr - 1 < len(num):
+        new_row = deepcopy(table.rows[-1])
+        table.rows[-1]._tr.addnext(new_row._element)  # 在最后一行后面添加
+        table.rows[-1]._tr.addprevious(new_row._element)
+        tr += 1
 
 
 # 生成模板
-def get_template(emergencyList, criticalList, commonList, fileName):
+def get_template(emergencyList, criticalList, commonList, file_name=""):
     # 实例化一个Document对象，相当于打开word软件，新建一个空白文件
-    doc = Document(fileName)
+    doc = Document(file_name)
     # tables = doc.tables  # 获取文档中所有表格对象的列表
 
-    emergency_detail_table_index = get_detail_table(doc, 1)
-    critical_detail_table_index = get_detail_table(doc, 2)
-    common_detail_table_index = get_detail_table(doc, 3)
+    emergency_detail_table_index = get_detail_table_index(doc, 1)
+    critical_detail_table_index = get_detail_table_index(doc, 2)
+    common_detail_table_index = get_detail_table_index(doc, 3)
     if not (
         emergency_detail_table_index
         * critical_detail_table_index
@@ -522,45 +490,45 @@ def get_template(emergencyList, criticalList, commonList, fileName):
     ):
         debug_log("定位危急缺陷明细表失败", 2)
         return False
-    emergency_statis_table_index = get_statis_table(doc, 1)
-    critical_statis_table_index = get_statis_table(doc, 2)
-    common_statis_table_index = get_statis_table(doc, 3)
+    emergency_statis_table_index = get_summary_table_index(doc, 1)
+    critical_statis_table_index = get_summary_table_index(doc, 2)
+    common_statis_table_index = get_summary_table_index(doc, 3)
 
-    emergency_detail_paragraph = match_detail_paragraph(doc, "危急缺陷明细表")
+    emergency_detail_paragraph = match_text_paragraph(doc, "危急缺陷明细表")
     if emergency_detail_paragraph == 0:
         debug_log("定位危急缺陷明细表失败", 2)
         return False
 
     # 判断  汇总表行数是否足够
-    add_missing_rows(doc, emergency_statis_table_index, emergencyList, "危急")
-    add_missing_rows(doc, critical_statis_table_index, criticalList, "严重")
-    add_missing_rows(doc, common_statis_table_index, commonList, "一般")
+    add_missing_rows(doc, emergency_statis_table_index, len(emergencyList), "危急")
+    add_missing_rows(doc, critical_statis_table_index, len(criticalList), "严重")
+    add_missing_rows(doc, common_statis_table_index, len(commonList), "一般")
 
     tbl = doc.tables[emergency_detail_table_index]._tbl
 
     # 判断 <危急> 详情表数量是否足够
-    addNum = missing_table_num(doc, emergency_detail_table_index, emergencyList)
+    addNum = missing_table_num(doc, emergency_detail_table_index, len(emergencyList))
     # <危急> 添加表格
     add_missing_table(doc, tbl, emergency_detail_paragraph, addNum)
     critical_detail_table_index += addNum
     common_detail_table_index += addNum
 
     # 判断 <严重> 详情表数量是否足够
-    critical_detail_paragraph = match_detail_paragraph(doc, "严重缺陷明细表")
+    critical_detail_paragraph = match_text_paragraph(doc, "严重缺陷明细表")
     if critical_detail_paragraph == 0:
         debug_log("严重缺陷明细表失败", 2)
         return False
-    addNum = missing_table_num(doc, critical_detail_table_index, criticalList)
+    addNum = missing_table_num(doc, critical_detail_table_index, len(criticalList))
     # <严重> 添加表格
     add_missing_table(doc, tbl, critical_detail_paragraph, addNum)
     common_detail_table_index += addNum
 
     # 判断 <一般> 详情表数量是否足够
-    common_detail_paragraph = match_detail_paragraph(doc, "一般缺陷明细表")
+    common_detail_paragraph = match_text_paragraph(doc, "一般缺陷明细表")
     if critical_detail_paragraph == 0:
         debug_log("一般缺陷明细表失败", 2)
         return False
-    addNum = missing_table_num(doc, common_detail_table_index, commonList)
+    addNum = missing_table_num(doc, common_detail_table_index, len(commonList))
     add_missing_table(doc, tbl, common_detail_paragraph, addNum)
 
     doc.save("tpl.docx")
@@ -588,7 +556,7 @@ def deal_one_type_table(doc, table_index, iamge_list, bug_type):
         deal_table(table, pic)
         picIndex += 1
         bug_pre_index = bug_pre + str(picIndex)
-        insert_row(table, 0, [bug_pre_index + "  " + get_pic_name(pic)])
+        insert_row(table, 0, [bug_pre_index + " " + get_pic_name(pic)])
         # todo
         image_index[pic] = bug_pre_index
     debug_log(f"{bug_type_map.get(bug_type,'')}明细表 处理完成")
@@ -623,9 +591,9 @@ def deal(emergencyList, criticalList, commonList, fileName):
     # 处理数据
     doc = Document("tpl.docx")
     tables = doc.tables  # 获取文档中所有表格对象的列表
-    emergency_statis_table_index = get_statis_table(doc, 1)
-    critical_statis_table_index = get_statis_table(doc, 2)
-    common_statis_table_index = get_statis_table(doc, 3)
+    emergency_statis_table_index = get_summary_table_index(doc, 1)
+    critical_statis_table_index = get_summary_table_index(doc, 2)
+    common_statis_table_index = get_summary_table_index(doc, 3)
 
     deal_one_type_table(doc, emergency_statis_table_index, emergencyList, EMERGENCY)
     deal_one_type_table(doc, critical_statis_table_index, criticalList, CRITICAL)
@@ -662,7 +630,7 @@ def debug_log(message, log_level=0):
 
 
 # 处理exif信息
-def clearexif(imageList):
+def clear_exif(imageList):
 
     def clear(image):
         f = Image.open(image)  # 你的图片文件
@@ -674,7 +642,7 @@ def clearexif(imageList):
     wait(all_tasks, return_when=ALL_COMPLETED)
 
 
-templateFileName = "template.docx"  # 模板文件名称
+template_file_name = "template.docx"  # 模板文件名称
 bug_num_table_index = 4  # 缺陷数量表位置
 bug_type_table_index = bug_num_table_index + 1  # 缺陷类别表位置
 statis_number_font = "Times New Roman"  # 统计表数字字体
@@ -685,22 +653,22 @@ ThreadPoolNum = 10
 EMERGENCY = 1
 CRITICAL = 2
 COMMON = 3
-
+IMAGE_DIR = "./pic"
 
 if __name__ == "__main__":
     debug_log("程序开始运行...")
-    tmpName = input("\033[32m请输入待生成的文件名称(回车确认):\033[m")
-    if tmpName == "":
-        tmpName = "res"
-    fileName = f"{tmpName}.docx"
-    emergencyList, criticalList, commonList = get_images()
-    if len(commonList) + len(criticalList) > +len(emergencyList) > 0:
-        if get_template(emergencyList, criticalList, commonList, templateFileName):
-            clearexif(emergencyList)
-            clearexif(criticalList)
-            clearexif(commonList)
-            deal(emergencyList, criticalList, commonList, fileName)
-            debug_log(f"请查看 \033[32m{fileName}\033[m 文件")
+    tmp_name = input("\033[32m请输入待生成的文件名称(回车确认):\033[m")
+    if tmp_name == "":
+        tmp_name = "res"
+    file_name = f"{tmp_name}.docx"
+    emergency_list, critical_list, common_list = get_images(IMAGE_DIR)
+    if len(common_list) + len(critical_list) > +len(emergency_list) > 0:
+        if get_template(emergency_list, critical_list, common_list, template_file_name):
+            clear_exif(emergency_list)
+            clear_exif(critical_list)
+            clear_exif(common_list)
+            deal(emergency_list, critical_list, common_list, file_name)
+            debug_log(f"请查看 \033[32m{file_name}\033[m 文件")
     debug_log(f"程序运行结束！")
 
 ```
