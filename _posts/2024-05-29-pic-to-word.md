@@ -24,7 +24,9 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 from docx.enum.text import WD_BREAK
 from docx.text.paragraph import Paragraph
 from docx.oxml.xmlchemy import OxmlElement
+from docx.oxml.xmlchemy import BaseOxmlElement
 from docx.oxml.ns import qn
+from inputimeout import inputimeout, TimeoutOccurred
 
 bugMap = {
     "杆塔树障": "基础",
@@ -354,9 +356,7 @@ def deal_close_up_image(pic):
 # 获取待处理的图片
 def get_images(image_dir=""):
     """Image Classification"""
-    common_list = []
-    critical_list = []
-    emergency_list = []
+    image_list = []
     for root, dirs, pics in os.walk(image_dir):
         for pic in pics:
             picName, picType = pic.split(".")
@@ -371,13 +371,22 @@ def get_images(image_dir=""):
             image_tower_map[pic] = tower_num
             image_route_name_map[pic] = route_name
             image_type_map[pic] = picType
-            match bug_level:
-                case "危急":
-                    emergency_list.append(pic)
-                case "严重":
-                    critical_list.append(pic)
-                case "一般":
-                    common_list.append(pic)
+            image_list.append(pic)
+
+    common_list = []
+    critical_list = []
+    emergency_list = []
+    clear_exif(image_list)
+    for i in image_list:
+        bug_level = image_bug_level_map.get(i, "")
+        match bug_level:
+            case "危急":
+                emergency_list.append(i)
+            case "严重":
+                critical_list.append(i)
+            case "一般":
+                common_list.append(i)
+
     return emergency_list, critical_list, common_list
 
 
@@ -467,7 +476,7 @@ def add_missing_rows(doc, table_index=0, image_num=0, bug_type=0):
 def table_add_row(table, num=0):
     """Adding rows to a table"""
     tr = len(table.rows)
-    while tr - 1 < len(num):
+    while tr - 1 < num:
         new_row = deepcopy(table.rows[-1])
         table.rows[-1]._tr.addnext(new_row._element)  # 在最后一行后面添加
         table.rows[-1]._tr.addprevious(new_row._element)
@@ -642,6 +651,20 @@ def clear_exif(imageList):
     wait(all_tasks, return_when=ALL_COMPLETED)
 
 
+def timer_input(msg="", default="", time_out=5):
+    m = ""
+    try:
+        # 5秒内未完成输入，则超时
+        m = inputimeout(
+            prompt="请在5秒钟内输入" + msg,
+            timeout=time_out,
+        )
+    except TimeoutOccurred:
+        debug_log(f"您未输入...\n", 1)
+        m = default
+    return m
+
+
 template_file_name = "template.docx"  # 模板文件名称
 bug_num_table_index = 4  # 缺陷数量表位置
 bug_type_table_index = bug_num_table_index + 1  # 缺陷类别表位置
@@ -653,22 +676,47 @@ ThreadPoolNum = 10
 EMERGENCY = 1
 CRITICAL = 2
 COMMON = 3
-IMAGE_DIR = "./pic"
+IMAGE_DIR = ".\\pic"
+
+
+def get_path():
+    dir = input("请输入(示例:c:\\pic):")
+    if os.path.exists(dir):
+        return
+    debug_log(f"该文件夹不存在，请重新输入", 1)
+    get_path()
+
+
+def main():
+    global IMAGE_DIR
+    debug_log(
+        f"请确认要处理的文件在\033[32m{os.getcwd()}{IMAGE_DIR[1:]}\033[m目录下",
+        1,
+    )
+    custom_path = timer_input("\n<是>输入:1\n<否>输入:2\n如需选择其他路径,输入:3")
+    match custom_path:
+        # case "1":
+
+        case "2":
+            return
+        case "3":
+            IMAGE_DIR = get_path()
+
+    tmp_name = timer_input(
+        "\033[32m待生成的文件名称(按回车确认,ctrl+c取消):\033[m", default="res"
+    )
+    file_name = f"{tmp_name}.docx"
+    emergency_list, critical_list, common_list = get_images(IMAGE_DIR)
+    if len(common_list) + len(critical_list) + len(emergency_list) == 0:
+        return
+    if get_template(emergency_list, critical_list, common_list, template_file_name):
+        deal(emergency_list, critical_list, common_list, file_name)
+        debug_log(f"请查看 \033[32m{file_name}\033[m 文件")
+
 
 if __name__ == "__main__":
     debug_log("程序开始运行...")
-    tmp_name = input("\033[32m请输入待生成的文件名称(回车确认):\033[m")
-    if tmp_name == "":
-        tmp_name = "res"
-    file_name = f"{tmp_name}.docx"
-    emergency_list, critical_list, common_list = get_images(IMAGE_DIR)
-    if len(common_list) + len(critical_list) > +len(emergency_list) > 0:
-        if get_template(emergency_list, critical_list, common_list, template_file_name):
-            clear_exif(emergency_list)
-            clear_exif(critical_list)
-            clear_exif(common_list)
-            deal(emergency_list, critical_list, common_list, file_name)
-            debug_log(f"请查看 \033[32m{file_name}\033[m 文件")
+    main()
     debug_log(f"程序运行结束！")
 
 ```
