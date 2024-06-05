@@ -555,6 +555,9 @@ def deal_one_type_table(doc, table_index, iamge_list, bug_type):
             bug_pre = "B"
         case 3:
             bug_pre = "C"
+    if len(iamge_list) == 0:
+        insert_row(doc.tables[table_index + 1], 0, [bug_pre + str(1)])
+        return
     picIndex = 0
     for i in range(
         table_index + 1,
@@ -651,16 +654,16 @@ def clear_exif(imageList):
     wait(all_tasks, return_when=ALL_COMPLETED)
 
 
-def timer_input(msg="", default="", time_out=5):
+def timer_input(msg="", default="", time_out=60):
     m = ""
     try:
         # 5秒内未完成输入，则超时
         m = inputimeout(
-            prompt="请在5秒钟内输入" + msg,
+            prompt=f"请在{time_out}秒钟内输入{msg}",
             timeout=time_out,
         )
     except TimeoutOccurred:
-        debug_log(f"您未输入...\n", 1)
+        debug_log(f"您未输入...\n使用默认值<\033[32m{default}\033[m>\n", 1)
         m = default
     return m
 
@@ -708,6 +711,10 @@ def main():
     file_name = f"{tmp_name}.docx"
     emergency_list, critical_list, common_list = get_images(IMAGE_DIR)
     if len(common_list) + len(critical_list) + len(emergency_list) == 0:
+        debug_log(
+            f"未找到任何图片,结束运行",
+            1,
+        )
         return
     if get_template(emergency_list, critical_list, common_list, template_file_name):
         deal(emergency_list, critical_list, common_list, file_name)
@@ -718,6 +725,5 @@ if __name__ == "__main__":
     debug_log("程序开始运行...")
     main()
     debug_log(f"程序运行结束！")
-
 
 ```
