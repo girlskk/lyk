@@ -693,14 +693,14 @@ def main():
         f"请确认要处理的文件在\033[32m{os.getcwd()}{IMAGE_DIR[1:]}\033[m目录下",
         1,
     )
-    custom_path = timer_input("\n<是>输入:1\n<否>输入:2\n如需选择其他路径,输入:3")
-    match custom_path:
-        # case "1":
+    # custom_path = timer_input("\n<是>输入:1\n<否>输入:2\n如需选择其他路径,输入:3")
+    # match custom_path:
+    #     # case "1":
 
-        case "2":
-            return
-        case "3":
-            IMAGE_DIR = get_path()
+    #     case "2":
+    #         return
+    #     case "3":
+    #         IMAGE_DIR = get_path()
 
     tmp_name = timer_input(
         "\033[32m待生成的文件名称(按回车确认,ctrl+c取消):\033[m", default="res"
@@ -718,5 +718,6 @@ if __name__ == "__main__":
     debug_log("程序开始运行...")
     main()
     debug_log(f"程序运行结束！")
+
 
 ```
