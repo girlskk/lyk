@@ -10,6 +10,16 @@ comments: true
 
 根据图片生成word报告
 
+需要准备的环境
+
+1. [python](https://www.python.org/ftp/python/3.12.4/python-3.12.4-amd64.exe)
+2. 
+```
+pip install python-docx==0.8.11
+pip install inputimeout
+```
+3.模板文件
+
 以下是代码
 
 ```Python
