@@ -18,7 +18,7 @@ comments: true
 pip install python-docx==0.8.11
 pip install inputimeout
 ```
-3.模板文件
+3.[模板文件](https://github.com/girlskk/lyk/raw/master/template.docx)
 
 以下是代码
 
