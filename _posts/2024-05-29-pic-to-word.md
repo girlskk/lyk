@@ -13,7 +13,7 @@ comments: true
 需要准备的环境
 
 1. 下载[python](https://www.python.org/ftp/python/3.12.4/python-3.12.4-amd64.exe)
-2. [下载处理程序](https://github.com/girlskk/lyk/archive/refs/tags/pic2wd.zip)
+2. [下载处理程序](https://github.com/user-attachments/files/15883504/pic2wd.zip)
 3. 将要处理的文件放到`pic/`目录下
 4. 运行pic2wd.bat
 
