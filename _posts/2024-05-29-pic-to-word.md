@@ -16,6 +16,7 @@ comments: true
 2. pip install python-docx==0.8.11
 3. pip install inputimeout
 4. [模板文件](https://github.com/girlskk/lyk/raw/master/template.docx)
+5. python .\picture_to_word.py
 
 
 
