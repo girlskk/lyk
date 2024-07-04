@@ -12,8 +12,9 @@ from docx.text.paragraph import Paragraph
 from docx.oxml.xmlchemy import OxmlElement
 from docx.oxml.xmlchemy import BaseOxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Cm
+from docx.shared import Cm, Inches
 from inputimeout import inputimeout, TimeoutOccurred
+
 
 bugMap = {
     "杆塔树障": "基础",
@@ -241,18 +242,18 @@ def deal_table(table, pic):
     update_cell(table, 1, 2, bug_level)
     update_cell(table, 2, 1, bug_reason)
 
-    table_insert_image(table, 9, pic, 0.9, 0.9, WD_PARAGRAPH_ALIGNMENT.CENTER)
+    insert_image_by_rate(table, 9, pic, 0.9, 0.9, WD_PARAGRAPH_ALIGNMENT.CENTER)
     close_up_pic = close_up_map.get(pic_name, "")
     if len(close_up_pic) > 0:
-        table_insert_image(
-            table, 12, close_up_pic, 0.35, 0.9, WD_PARAGRAPH_ALIGNMENT.LEFT
+        insert_image_designation(
+            table, 12, close_up_pic, 7, 7, WD_PARAGRAPH_ALIGNMENT.LEFT
         )
     debug_log(f"明细表 {pic_name} 处理完成")
 
 
 #
 # 插入图片
-def table_insert_image(table, cell_idx, pic, xRate, yRate, alignment):
+def insert_image_by_rate(table, cell_idx, pic, xRate, yRate, alignment):
     image_path = "./pic/" + pic
     cell = table._cells[cell_idx]
 
@@ -260,6 +261,18 @@ def table_insert_image(table, cell_idx, pic, xRate, yRate, alignment):
         image_path,
         width=cell.width * xRate,
         height=table.rows[3].height * yRate,
+    )
+    cell.paragraphs[0].alignment = alignment
+
+
+def insert_image_designation(table, cell_idx, pic, x, y, alignment):
+    image_path = "./pic/" + pic
+    cell = table._cells[cell_idx]
+
+    cell.paragraphs[0].add_run().add_picture(
+        image_path,
+        width=Cm(x),
+        height=Cm(y),
     )
     cell.paragraphs[0].alignment = alignment
 
