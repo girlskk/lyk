@@ -15,5 +15,4 @@ comments: true
 1. 下载[python](https://www.python.org/ftp/python/3.12.4/python-3.12.4-amd64.exe)
 2. [下载处理程序](https://github.com/girlskk/pic2wd/archive/refs/tags/pic2wd.zip)
 3. 解压文件
-4. 将要处理的文件放到`pic/`目录下
-5. 运行pic2wd.bat
+4. 运行pic2wd.bat
